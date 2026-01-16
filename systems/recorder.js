@@ -1,58 +1,67 @@
-let recorder = null, chunks = [], stream = null;
-let detachAudio = null;
+import { getPlayerProgress } from '../unlocks.js';
 
-export function startRecording(canvas, fps = 30) {
-  try {
-    stopRecordingSync();
-    const canvasStream = canvas?.captureStream?.(fps);
-    if (!canvasStream) { console.warn('captureStream not supported'); return; }
-    // attach game audio
-    import('./audio.js').then(({ attachRecordingDestination }) => {
-      const { stream: audioStream, detach } = attachRecordingDestination();
-      detachAudio = detach || null;
-      const combined = new MediaStream([
-        ...canvasStream.getVideoTracks(),
-        ...(audioStream ? audioStream.getAudioTracks() : [])
-      ]);
-      chunks = [];
-      const mimeTypes = [
-        'video/webm;codecs=vp9,opus',
-        'video/webm;codecs=vp8,opus',
-        'video/webm',
-        ''
-      ];
-      const mimeType = mimeTypes.find(t => t && MediaRecorder.isTypeSupported?.(t)) || undefined;
-      recorder = new MediaRecorder(combined, mimeType ? { mimeType } : undefined);
-      recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-      recorder.onerror = (e) => console.warn('Recorder error:', e);
-      recorder.start(250);
-      stream = combined;
-    });
-  } catch (e) { console.warn('Recorder start failed:', e); }
+let isRecording = false;
+let frames = [];
+let startTime = 0;
+const FRAME_RATE = 30;
+let lastFrameTime = 0;
+
+export function startRecording() {
+    isRecording = true;
+    frames = [];
+    startTime = Date.now();
+    lastFrameTime = startTime;
 }
 
-function stopRecordingSync() {
-  try { if (recorder && recorder.state !== 'inactive') recorder.stop(); } catch {}
-  try { stream?.getTracks?.().forEach(t => t.stop()); } catch {}
-  try { detachAudio?.(); } catch {}
-  recorder = null; stream = null; detachAudio = null;
+// Precision helper to save JSON space
+const p = (n) => typeof n === 'number' ? Number(n.toFixed(2)) : 0;
+
+export function recordTick(bear, activeFishes, score) {
+    if (!isRecording || !bear) return;
+
+    const now = Date.now();
+    // Limit recording to approx 30fps
+    if (now - lastFrameTime < 1000 / FRAME_RATE) return;
+    lastFrameTime = now;
+
+    const frameData = {
+        // Bear pos/rot
+        bp: [p(bear.position.x), p(bear.position.y), p(bear.position.z)],
+        br: [p(bear.rotation.x), p(bear.rotation.y), p(bear.rotation.z)],
+        // Active fishes
+        f: activeFishes.map(f => ({
+            t: f.userData.fishType || 'classic',
+            p: [p(f.position.x), p(f.position.y), p(f.position.z)],
+            r: [p(f.rotation.x), p(f.rotation.y), p(f.rotation.z)]
+        }))
+    };
+    
+    // Add mask info if present
+    if (bear.getObjectByName('cosmeticMask')) {
+        frameData.m = 1;
+    }
+
+    frames.push(frameData);
+
+    // Hard limit to prevent memory issues/huge uploads (approx 45 seconds)
+    if (frames.length > 30 * 45) {
+        frames.shift(); // Keep mostly recent history
+    }
 }
 
 export function stopRecording() {
-  return new Promise((resolve) => {
-    const rec = recorder;
-    if (!rec) return resolve(null);
-    const finish = () => {
-      const blob = chunks.length ? new Blob(chunks, { type: 'video/webm' }) : null;
-      chunks = [];
-      try { stream?.getTracks?.().forEach(t => t.stop()); } catch {}
-      try { detachAudio?.(); } catch {}
-      recorder = null; stream = null; detachAudio = null;
-      resolve(blob);
+    isRecording = false;
+    const progress = getPlayerProgress();
+    
+    // Construct the replay payload
+    const replayData = {
+        fps: FRAME_RATE,
+        bearType: progress.selectedBear,
+        cosmeticId: progress.selectedCosmetic,
+        frames: frames,
+        totalFrames: frames.length,
+        durationInSeconds: frames.length / FRAME_RATE
     };
-    const onStop = () => { rec.removeEventListener('stop', onStop); finish(); };
-    rec.addEventListener('stop', onStop);
-    let safety = setTimeout(()=>{ try{ rec.removeEventListener('stop', onStop);}catch{} finish(); }, 2000);
-    try { rec.stop(); } catch { clearTimeout(safety); finish(); }
-  });
+    
+    return replayData;
 }

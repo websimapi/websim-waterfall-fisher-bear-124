@@ -11,6 +11,7 @@ import { renderer, camera } from '../scene.js';
 import { setupStartScreen, startGameWithTurnaround, gameOver } from './gameFlow.js';
 import { handleFishInteractions } from './gameplay.js';
 import { showcaseFish, showcaseBear } from './showcase.js';
+import { recordTick } from './recorder.js';
 
 // --- GAME OBJECTS ---
 export let bear = null;
@@ -108,6 +109,10 @@ export function updateGame(dt = 1/60) {
             gameOver();
             return;
         }
+        
+        // Record replay frame
+        recordTick(bear, activeFishes, gameState.score);
+        
     } else if (gameState.current === 'GAME_OVER') {
         if (bear && bear.position.y > -10) {
             bear.position.add(gravity);

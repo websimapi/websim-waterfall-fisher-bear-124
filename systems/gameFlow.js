@@ -88,7 +88,7 @@ function startGame() {
     if (showcaseBear) showcaseBear.visible = false;
 
     createGameBear();
-    try { startRecording(renderer.domElement); } catch {}
+    startRecording();
     // notify listeners that gameplay has begun (for quick-start drag carry-over)
     window.dispatchEvent(new CustomEvent('game:started'));
 
@@ -150,20 +150,15 @@ export function gameOver() {
     playSFX(sounds.splash);
     activeFishes.forEach(f => scene.remove(f));
     activeFishes.length = 0;
-    (async () => {
-        try {
-            await new Promise(r=>setTimeout(r, 1000)); // wait 1s post-fall before stopping recording
-            const blob = await stopRecording();
-            if (blob && window.websim?.upload) {
-                const file = new File([blob], 'replay_' + Date.now() + '.webm', { type: blob.type || 'video/webm' });
-                window.__replayUploadPromise = window.websim.upload(file).then((url)=>{ window.__lastReplayUrl = url; return url; });
-                const url = await window.__replayUploadPromise;
-                addLocalScore(gameState.score, url);
-            } else {
-                addLocalScore(gameState.score, null);
-            }
-        } catch (e) { console.warn('Replay upload failed:', e); addLocalScore(gameState.score, null); }
-    })();
+    
+    // Stop recording and get JSON data immediately
+    const replayData = stopRecording();
+    // For local score, we can store the object directly or stringify it.
+    // However, leaderboard expects a "clipUrl" usually. We will repurpose this.
+    // Since we can't "upload" JSON to a file URL easily without blobs (which we want to avoid for the leaderboard DB entry per instructions?),
+    // We will just pass the data object to addLocalScore.
+    addLocalScore(gameState.score, replayData);
+
     // remove auto transition; wait for user choice
     const skipBtn = document.getElementById('skip-submit-btn');
     skipBtn?.addEventListener('click', proceedToStart, { once: true });

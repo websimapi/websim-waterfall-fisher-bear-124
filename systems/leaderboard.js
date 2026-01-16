@@ -9,12 +9,25 @@ function getLocalScores() {
   try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { return []; }
 }
 function saveLocalScores(arr) { localStorage.setItem(LS_KEY, JSON.stringify(arr)); }
-export function addLocalScore(score, clipUrl = null) {
+export function addLocalScore(score, replayData = null) {
   const arr = getLocalScores();
-  arr.push({ score, at: Date.now(), clipUrl });
+  // If we have replayData, we must store it. 
+  // LocalStorage has size limits, so we might only store the last few replays fully, 
+  // or just store the most recent one in memory for immediate playback?
+  // For the prompt, we store it in the object.
+  arr.push({ score, at: Date.now(), replayData });
   arr.sort((a,b)=>b.score-a.score);
-  saveLocalScores(arr.slice(0, 50));
+  // Prevent LS overflow by only keeping top scores and maybe stripping replay data from old ones
+  const toSave = arr.slice(0, 50).map((item, idx) => {
+      // Keep replay data only for top 5 to save space
+      if (idx > 5) return { ...item, replayData: null };
+      return item;
+  });
+  saveLocalScores(toSave);
   renderLocal();
+  
+  // Also store the very last replay in a global var for the "Submit" flow
+  if (replayData) window.__lastReplayData = replayData;
 }
 function renderLocal() {
   const list = document.getElementById('local-scores'); if (!list) return;
@@ -28,8 +41,8 @@ function renderLocal() {
     const li = document.createElement('li');
     const d = new Date(e.at);
     li.textContent = `${e.score} — ${d.toLocaleDateString()} ${d.toLocaleTimeString()} `;
-    if (e.clipUrl) {
-      const meta = { src: e.clipUrl, user: (currentUser?.username)||'you', score: e.score };
+    if (e.replayData) {
+      const meta = { replayData: e.replayData, user: (currentUser?.username)||'you', score: e.score };
       li.appendChild(createReplayButton(meta));
     }
     list.appendChild(li);
@@ -43,7 +56,7 @@ function renderGlobalFromRecords(records) {
     try {
       const data = JSON.parse(r.data || '{}');
       if (typeof data.highScore === 'number') {
-        items.push({ user: r.username, score: data.highScore, clip: data.lastReplayUrl || null });
+        items.push({ user: r.username, score: data.highScore, clip: data.lastReplayJson || null });
       }
     } catch {}
   }
@@ -92,21 +105,31 @@ async function ensureMyRecord() {
     myRecord = await coll.create({ user_id: currentUser.id, data: JSON.stringify({ highScore: 0, recent: [] }) });
   }
 }
-export async function submitScoreToDB(score, replayUrl) {
+export async function submitScoreToDB(score) {
   try {
     await ensureMyRecord();
-    if (!room || !myRecord) return; // gracefully bail when no backend
-    if (window.__replayUploadPromise) { try { await window.__replayUploadPromise; } catch {} }
+    if (!room || !myRecord) return;
     const coll = room.collection('player_v1');
     let data = {};
     try { data = JSON.parse(myRecord.data || '{}'); } catch { data = {}; }
     const recent = Array.isArray(data.recent) ? data.recent : [];
-    const clip = replayUrl || window.__lastReplayUrl || null;
-    recent.unshift({ score, at: Date.now(), clipUrl: clip });
+    
+    // Use the JSON data
+    const replayData = window.__lastReplayData || null;
+    
+    // We only store the JSON for the *latest* high score submission to avoid DB bloat.
+    // We won't store it in the 'recent' array history, just the top-level 'lastReplayJson'.
+    
+    recent.unshift({ score, at: Date.now() }); // No clipUrl in history for now
     const highScore = Math.max(Number(data.highScore||0), score);
-    const newData = { highScore, recent: recent.slice(0, 50), lastReplayUrl: clip };
+    
+    const newData = { 
+        highScore, 
+        recent: recent.slice(0, 50), 
+        lastReplayJson: replayData // Store JSON here
+    };
+    
     await coll.update(myRecord.id, { data: JSON.stringify(newData) });
-    // refresh myRecord
     const updated = coll.filter({ username: currentUser.username }).getList();
     myRecord = updated[0] || myRecord;
   } catch (e) {
@@ -208,18 +231,38 @@ function bindReplayModal() {
   closeBtn?.addEventListener('click', ()=> hideReplayModal());
   modal?.addEventListener('click', (e)=>{ if(e.target===modal) hideReplayModal(); });
 }
-function showReplayModal({ src, user, score }) {
+function showReplayModal({ replayData, user, score }) {
   const modal = document.getElementById('replay-modal'); if (!modal) return;
-  const v = document.getElementById('replay-video'); v.src = src || ''; v.currentTime = 0; v.play().catch(()=>{});
+  
+  const container = document.getElementById('replay-container');
+  // Clear previous player
+  container.innerHTML = '';
+
+  if (replayData) {
+      import('../replay/main.jsx').then(({ mountReplay }) => {
+          mountReplay(container, replayData);
+      });
+  } else {
+      container.innerHTML = '<p style="color:white;">Replay unavailable</p>';
+  }
+
   const uname = user?.username || user?.name || user || 'You';
   const usernameEl = document.getElementById('replay-username'); usernameEl.textContent = `@${uname}`; usernameEl.href = `https://websim.com/@${uname}`;
   const avatarEl = document.getElementById('replay-avatar'); avatarEl.src = `https://images.websim.com/avatar/${uname}`;
   const scoreEl = document.getElementById('replay-score'); scoreEl.textContent = `Score: ${Number(score||0)}`;
   modal.classList.remove('hidden'); modal.setAttribute('aria-hidden','false');
 }
+
 function hideReplayModal() {
-  const modal = document.getElementById('replay-modal'); const v = document.getElementById('replay-video');
-  if (v) { try { v.pause(); } catch {} v.src=''; }
+  const modal = document.getElementById('replay-modal');
+  const container = document.getElementById('replay-container');
+  
+  if (container) {
+      import('../replay/main.jsx').then(({ unmountReplay }) => {
+          unmountReplay(container);
+      });
+  }
+  
   modal?.classList.add('hidden'); modal?.setAttribute('aria-hidden','true');
 }
 window.addEventListener('DOMContentLoaded', () => {
