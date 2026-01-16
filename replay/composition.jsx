@@ -84,37 +84,40 @@ const ReplayComposition = ({ replayData }) => {
       camera.position.y = CAM_OFFSET_Y;
       camera.lookAt(0, 2, b.position.z);
       const fishGroup = fishGroupRef.current;
-      const activeIds = /* @__PURE__ */ new Set();
+      const currentFishIds = /* @__PURE__ */ new Set();
       frameData.f.forEach((fData, idx) => {
-        const id = `fish_${idx}`;
-        activeIds.add(id);
-        let fish = fishGroup.children.find((c) => c.name === id);
+        const fishId = fData.id || `legacy_${idx}`;
+        currentFishIds.add(fishId);
+        let fish = fishGroup.children.find((c) => c.userData.originalId === fishId);
         if (!fish) {
-          if (fishGroup.children[idx]) {
-            fish = fishGroup.children[idx];
-          } else {
-            fish = createFish(sceneRef.current, 0, fData.t, {}, false);
-            fishGroup.add(fish);
-          }
+          fish = createFish(sceneRef.current, 0, fData.t, { id: fishId }, false);
+          fish.userData.originalId = fishId;
+          fishGroup.add(fish);
         }
         if (fish.userData.fishType !== fData.t) {
           fishGroup.remove(fish);
-          fish = createFish(sceneRef.current, 0, fData.t, {}, false);
+          fish = createFish(sceneRef.current, 0, fData.t, { id: fishId }, false);
+          fish.userData.originalId = fishId;
           fishGroup.add(fish);
         }
         fish.visible = true;
         fish.position.set(...fData.p);
         fish.rotation.set(...fData.r);
+        if (fData.s) {
+          fish.scale.set(fData.s, fData.s, fData.s);
+        }
       });
-      for (let i = frameData.f.length; i < fishGroup.children.length; i++) {
-        fishGroup.children[i].visible = false;
-      }
+      fishGroup.children.forEach((child) => {
+        if (!currentFishIds.has(child.userData.originalId)) {
+          child.visible = false;
+        }
+      });
     }
     rendererRef.current.render(sceneRef.current, cameraRef.current);
   }, [frame, replayData]);
   return /* @__PURE__ */ jsxDEV("canvas", { ref: canvasRef, style: { width: "100%", height: "100%" } }, void 0, false, {
     fileName: "<stdin>",
-    lineNumber: 166,
+    lineNumber: 165,
     columnNumber: 10
   });
 };

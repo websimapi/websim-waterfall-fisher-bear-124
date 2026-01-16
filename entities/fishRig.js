@@ -12,12 +12,15 @@ const vitiligoBodyMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
 const vitiligoPatchMat = new THREE.MeshLambertMaterial({ color: 0xf0f0f0 });
 const goldenBodyMat = new THREE.MeshLambertMaterial({ color: 0xdaa520 });
 
+let fishIdCounter = 0;
+
 /* apply polygon offset to reduce z-fighting on overlapping shells */
 [fishTailMat, finMat, bellyMat].forEach(m => { m.polygonOffset = true; m.polygonOffsetFactor = 1; m.polygonOffsetUnits = 1; });
 
 export function createRiggedFish({ scene, score = 0, type = 'classic', opts = {}, addToScene = true }) {
   const group = new THREE.Group();
-  group.name = 'fish';
+  const fishId = opts.id || `f_${fishIdCounter++}`;
+  group.name = fishId;
   group.rotation.y = Math.PI;
 
   const isVitiligo = type === 'vitiligo';
@@ -113,6 +116,7 @@ export function createRiggedFish({ scene, score = 0, type = 'classic', opts = {}
   if (boosted) swimSpeed *= 2;
 
   group.userData = {
+    id: fishId,
     velocity: new THREE.Vector3(0, 0, swimSpeed),
     initialX: xPos, baseY,
     swimFrequency: Math.random() * 0.6 + 0.9,

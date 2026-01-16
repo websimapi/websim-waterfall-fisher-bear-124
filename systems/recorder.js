@@ -30,7 +30,9 @@ export function recordTick(bear, activeFishes, score, log) {
         br: [p(bear.rotation.x), p(bear.rotation.y), p(bear.rotation.z)],
         // Active fishes
         f: activeFishes.map(f => ({
+            id: f.userData.id,
             t: f.userData.fishType || 'classic',
+            s: p(f.scale.x),
             p: [p(f.position.x), p(f.position.y), p(f.position.z)],
             r: [p(f.rotation.x), p(f.rotation.y), p(f.rotation.z)]
         }))
