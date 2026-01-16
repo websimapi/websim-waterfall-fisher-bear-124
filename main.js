@@ -28,39 +28,53 @@ mountRenderer(document.getElementById('game-container'));
 window.addEventListener('resize', resizeRenderer);
 
 // --- GAME LOOP ---
-const clock = new THREE.Clock();
 const FIXED_TIMESTEP = 1 / 60; // 60 updates per second
 let accumulator = 0;
-let tweenTime = performance.now();
+let lastTime = 0;
 
 function animate(time) {
     requestAnimationFrame(animate);
 
-    // TWEEN and visual updates run every frame for smoothness (interpolation)
-    TWEEN.update(time);
+    // Convert time to seconds
+    const timeInSeconds = time / 1000;
+    
+    // Handle first frame
+    if (lastTime === 0) {
+        lastTime = timeInSeconds;
+        return;
+    }
 
-    const deltaTime = clock.getDelta();
+    // Calculate delta time
+    let deltaTime = timeInSeconds - lastTime;
+    lastTime = timeInSeconds;
+    
+    // Clamp delta to prevent "spiral of death"
+    if (deltaTime > 0.25) deltaTime = 0.25;
+    
     accumulator += deltaTime;
-
-    // Physics/Logic updates run at fixed timestep
+    
+    // Update game logic at fixed intervals
     while (accumulator >= FIXED_TIMESTEP) {
         updateControls(); // Process inputs synced with physics
-        updateGame(FIXED_TIMESTEP);
+        updateGame(FIXED_TIMESTEP); // Physics, AI, collision
+        updateWaterfall(waterfall); // Consistent waterfall speed
         accumulator -= FIXED_TIMESTEP;
     }
     
+    // Visual updates (Tweens) run every frame with actual time for smoothness
+    // This decouples animation framerate from physics tick rate, fixing the jitter
+    TWEEN.update(time);
+
     const controls = getOrbitControls();
     if (controls?.enabled) {
         controls.update();
     }
 
-    updateWaterfall(waterfall);
-
     renderer.render(scene, camera);
 }
 
 // Start the animation loop
-animate();
+requestAnimationFrame(animate);
 
 /* Tap To Play overlay interaction */
 const overlay = document.getElementById('tap-start-overlay');
