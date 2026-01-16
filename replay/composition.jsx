@@ -101,7 +101,7 @@ const ReplayComposition = ({ replayData }) => {
           fish.userData.originalId = fishId;
           fishGroup.add(fish);
         }
-        if (fish.userData.fishType !== fData.t) {
+        if (fish && fish.userData.fishType !== fData.t) {
           fishGroup.remove(fish);
           fish = createFish(sceneRef.current, 0, fData.t, { id: fishId }, false);
           fish.userData.originalId = fishId;

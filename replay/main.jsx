@@ -24,7 +24,7 @@ function mountReplay(container, replayData) {
         controls: true,
         loop: true,
         autoPlay: true,
-        style: { width: "100%", height: "100%" }
+        style: { width: "100%", height: "100%", borderRadius: "12px", overflow: "hidden" }
       },
       void 0,
       false,

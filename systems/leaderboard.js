@@ -73,7 +73,7 @@ function renderGlobalFromRecords(records) {
     const name = document.createElement('span'); name.textContent = `${e.user}: ${e.score} `;
     li.appendChild(img); li.appendChild(name);
     if (e.clip) {
-      li.appendChild(createReplayButton({ src: e.clip, user: e.user, score: e.score }));
+      li.appendChild(createReplayButton({ replayData: e.clip, user: e.user, score: e.score }));
     }
     list.appendChild(li);
   });
