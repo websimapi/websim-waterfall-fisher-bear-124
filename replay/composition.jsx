@@ -15,6 +15,7 @@ const ReplayComposition = ({ replayData }) => {
   const rendererRef = useRef(null);
   const bearRef = useRef(null);
   const fishGroupRef = useRef(null);
+  const logRef = useRef(null);
   useEffect(() => {
     if (!canvasRef.current || !replayData) return;
     const scene = new THREE.Scene();
@@ -31,6 +32,8 @@ const ReplayComposition = ({ replayData }) => {
     dirLight.position.set(10, 20, 5);
     scene.add(dirLight);
     const scenery = createScenery();
+    const log = scenery.getObjectByName("log");
+    if (log) logRef.current = log;
     scene.add(scenery);
     const waterfall = createWaterfall();
     scene.add(waterfall);
@@ -70,6 +73,10 @@ const ReplayComposition = ({ replayData }) => {
       const b = bearRef.current;
       if (frameData.bp) b.position.set(...frameData.bp);
       if (frameData.br) b.rotation.set(...frameData.br);
+      if (logRef.current) {
+        if (frameData.lp) logRef.current.position.set(...frameData.lp);
+        if (frameData.lr) logRef.current.rotation.set(...frameData.lr);
+      }
       const CAM_OFFSET_Y = 12;
       const CAM_OFFSET_Z = 9;
       const camera = cameraRef.current;
@@ -107,7 +114,7 @@ const ReplayComposition = ({ replayData }) => {
   }, [frame, replayData]);
   return /* @__PURE__ */ jsxDEV("canvas", { ref: canvasRef, style: { width: "100%", height: "100%" } }, void 0, false, {
     fileName: "<stdin>",
-    lineNumber: 157,
+    lineNumber: 166,
     columnNumber: 10
   });
 };

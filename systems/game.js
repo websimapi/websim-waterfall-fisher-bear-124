@@ -111,7 +111,7 @@ export function updateGame(dt = 1/60) {
         }
         
         // Record replay frame
-        recordTick(bear, activeFishes, gameState.score);
+        recordTick(bear, activeFishes, gameState.score, log);
         
     } else if (gameState.current === 'GAME_OVER') {
         if (bear && bear.position.y > -10) {

@@ -16,7 +16,7 @@ export function startRecording() {
 // Precision helper to save JSON space
 const p = (n) => typeof n === 'number' ? Number(n.toFixed(2)) : 0;
 
-export function recordTick(bear, activeFishes, score) {
+export function recordTick(bear, activeFishes, score, log) {
     if (!isRecording || !bear) return;
 
     const now = Date.now();
@@ -35,6 +35,11 @@ export function recordTick(bear, activeFishes, score) {
             r: [p(f.rotation.x), p(f.rotation.y), p(f.rotation.z)]
         }))
     };
+
+    if (log) {
+        frameData.lp = [p(log.position.x), p(log.position.y), p(log.position.z)];
+        frameData.lr = [p(log.rotation.x), p(log.rotation.y), p(log.rotation.z)];
+    }
     
     // Add mask info if present
     if (bear.getObjectByName('cosmeticMask')) {
