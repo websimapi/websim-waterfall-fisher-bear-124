@@ -11,7 +11,8 @@ import { startGameWithTurnaround } from './systems/gameFlow.js';
 import { gameState } from './systems/game.js';
 
 // --- SCENE SETUP ---
-const scenery = createScenery();
+const scenerySeed = Math.floor(Math.random() * 1000000);
+const scenery = createScenery(scenerySeed);
 scene.add(scenery);
 const waterfallSeed = Math.floor(Math.random() * 1000000);
 const waterfall = createWaterfall(waterfallSeed);

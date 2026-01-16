@@ -7,8 +7,10 @@ const rockMat = new THREE.MeshLambertMaterial({ color: 0x808080 });
 const grassMat = new THREE.MeshLambertMaterial({ color: 0x2e8b57 });
 const sandMat = new THREE.MeshLambertMaterial({ color: 0xd2b48c }); // tan/sand color
 
-export function createScenery() {
+export function createScenery(seed = 12345) {
     const group = new THREE.Group();
+    group.name = "scenery";
+    group.userData.seed = seed;
 
     // Riverbed - add this first to be under the water and other objects.
     const waterWidth = 8;
@@ -141,7 +143,7 @@ export function createScenery() {
     group.add(groundWallL, groundWallR);
 
     // Generate and add all procedural assets
-    const proceduralAssets = generateProceduralAssets();
+    const proceduralAssets = generateProceduralAssets(seed);
     group.add(proceduralAssets);
 
     return group;

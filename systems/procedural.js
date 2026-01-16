@@ -7,9 +7,18 @@ const treeLeavesMat = new THREE.MeshLambertMaterial({ color: 0x228B22 });
 const grassMat = new THREE.MeshLambertMaterial({ color: 0x2e8b57 });
 const bushMat = new THREE.MeshLambertMaterial({ color: 0x3cb371 });
 
-function createTree(x, y, z) {
+function createRNG(seed) {
+    let s = seed % 2147483647;
+    if (s <= 0) s += 2147483646;
+    return () => {
+        s = (s * 16807) % 2147483647;
+        return (s - 1) / 2147483646;
+    };
+}
+
+function createTree(x, y, z, rng) {
     const g = new THREE.Group();
-    const trunkHeight = 1.5 + Math.random() * 1.5;
+    const trunkHeight = 1.5 + rng() * 1.5;
     g.add(createVoxel(0, trunkHeight / 2, 0, 0.5, trunkHeight, 0.5, treeTrunkMat));
     const leavesY = trunkHeight;
     g.add(createVoxel(0, leavesY + 0.75, 0, 1.5, 1.5, 1.5, treeLeavesMat));
@@ -19,7 +28,7 @@ function createTree(x, y, z) {
     return g;
 }
 
-function createMountainSide(isLeft) {
+function createMountainSide(isLeft, rng) {
     const group = new THREE.Group();
     const sign = isLeft ? -1 : 1;
     const baseWidth = 8, baseDepth = 20, startY = 2, endY = -20;
@@ -27,21 +36,21 @@ function createMountainSide(isLeft) {
     let currentY = startY, layerCount = 0;
     while (currentY > endY) {
         layerCount++;
-        const layerHeight = 3 + Math.random() * 3;
-        const widthIncrease = Math.random() * 2;
-        const depthIncrease = Math.random() * 2;
+        const layerHeight = 3 + rng() * 3;
+        const widthIncrease = rng() * 2;
+        const depthIncrease = rng() * 2;
         const layerWidth = baseWidth + (layerCount * widthIncrease);
         const layerDepth = baseDepth + (layerCount * depthIncrease);
         const layerX = sign * (bankEdgeX + layerWidth / 2 - 1);
-        const layerZ = -5 + (Math.random() - 0.5) * 2;
+        const layerZ = -5 + (rng() - 0.5) * 2;
         const layerY = currentY - layerHeight / 2;
         group.add(createVoxel(layerX, layerY, layerZ, layerWidth, layerHeight, layerDepth, rockMat));
-        const detailRocks = 2 + Math.floor(Math.random() * 3);
+        const detailRocks = 2 + Math.floor(rng() * 3);
         for (let i = 0; i < detailRocks; i++) {
-            const size = 1 + Math.random() * 2;
-            const detailX = layerX + sign * (Math.random() * layerWidth - (layerWidth / 2));
+            const size = 1 + rng() * 2;
+            const detailX = layerX + sign * (rng() * layerWidth - (layerWidth / 2));
             const detailY = currentY + size / 2;
-            const detailZ = layerZ + (Math.random() - 0.5) * layerDepth;
+            const detailZ = layerZ + (rng() - 0.5) * layerDepth;
             group.add(createVoxel(detailX, detailY, detailZ, size, size, size, rockMat));
         }
         currentY -= layerHeight;
@@ -49,7 +58,7 @@ function createMountainSide(isLeft) {
     return group;
 }
 
-function createBush(x, y, z) {
+function createBush(x, y, z, rng) {
     const g = new THREE.Group();
     g.add(createVoxel(0, 0.25, 0, 1.2, 0.6, 1.2, bushMat));
     g.add(createVoxel(0.5, 0.35, -0.2, 0.7, 0.5, 0.7, bushMat));
@@ -58,9 +67,11 @@ function createBush(x, y, z) {
     return g;
 }
 
-export function generateProceduralAssets() {
+export function generateProceduralAssets(seed = 12345) {
     const group = new THREE.Group();
     group.name = "procedural-scenery";
+    group.userData.seed = seed;
+    const rng = createRNG(seed);
 
     const placementGrid = new Map();
     const gridCellSize = 2.0;
@@ -89,8 +100,8 @@ export function generateProceduralAssets() {
         }
     }
 
-    group.add(createMountainSide(true));
-    group.add(createMountainSide(false));
+    group.add(createMountainSide(true, rng));
+    group.add(createMountainSide(false, rng));
 
     // Dynamic Tree and Bush Placement
     const groundY = 2.1;
@@ -99,20 +110,20 @@ export function generateProceduralAssets() {
     const bankWidth = 6;
     const numTrees = 50;
     for (let i = 0; i < numTrees; i++) {
-        const side = Math.random() < 0.5 ? -1 : 1;
-        const x = side * (riverHalfWidth + 1.0 + Math.random() * (bankWidth - 1.5));
-        const z = -bankLength / 2 + 0.5 + Math.random() * (bankLength - 1);
+        const side = rng() < 0.5 ? -1 : 1;
+        const x = side * (riverHalfWidth + 1.0 + rng() * (bankWidth - 1.5));
+        const z = -bankLength / 2 + 0.5 + rng() * (bankLength - 1);
 
         if (!isOccupied(x, z, 1.5)) {
-            group.add(createTree(x, groundY, z));
+            group.add(createTree(x, groundY, z, rng));
             occupy(x, z, 1.5);
 
-            if (Math.random() > 0.65) {
-                const bushX = x + (Math.random() - 0.5) * 3;
-                const bushZ = z + (Math.random() - 0.5) * 3;
+            if (rng() > 0.65) {
+                const bushX = x + (rng() - 0.5) * 3;
+                const bushZ = z + (rng() - 0.5) * 3;
                 const clampedBushX = side * Math.max(riverHalfWidth + 0.6, Math.min(Math.abs(bushX), riverHalfWidth + bankWidth - 0.6));
                 if (!isOccupied(clampedBushX, bushZ, 1.0)) {
-                    group.add(createBush(clampedBushX, groundY, bushZ));
+                    group.add(createBush(clampedBushX, groundY, bushZ, rng));
                     occupy(clampedBushX, bushZ, 1.0);
                 }
             }
@@ -127,19 +138,19 @@ export function generateProceduralAssets() {
     const lowerBankWidth = 6;
     const numTreesLower = 40;
     for (let i = 0; i < numTreesLower; i++) {
-        const side = Math.random() < 0.5 ? -1 : 1;
-        const x = side * (riverHalfWidth + 1.0 + Math.random() * (lowerBankWidth - 1.5));
-        const z = lowerRiverStartZ + 0.5 + Math.random() * (lowerRiverLength - 1);
+        const side = rng() < 0.5 ? -1 : 1;
+        const x = side * (riverHalfWidth + 1.0 + rng() * (bankWidth - 1.5));
+        const z = lowerRiverStartZ + 0.5 + rng() * (lowerRiverLength - 1);
 
         if (!isOccupied(x, z, 1.5)) {
-            group.add(createTree(x, lowerGroundY, z));
+            group.add(createTree(x, lowerGroundY, z, rng));
             occupy(x, z, 1.5);
-            if (Math.random() > 0.65) {
-                const bushX = x + (Math.random() - 0.5) * 3;
-                const bushZ = z + (Math.random() - 0.5) * 3;
+            if (rng() > 0.65) {
+                const bushX = x + (rng() - 0.5) * 3;
+                const bushZ = z + (rng() - 0.5) * 3;
                 const clampedBushX = side * Math.max(riverHalfWidth + 0.6, Math.min(Math.abs(bushX), riverHalfWidth + lowerBankWidth - 0.6));
                 if (!isOccupied(clampedBushX, bushZ, 1.0)) {
-                    group.add(createBush(clampedBushX, lowerGroundY, bushZ));
+                    group.add(createBush(clampedBushX, lowerGroundY, bushZ, rng));
                     occupy(clampedBushX, bushZ, 1.0);
                 }
             }
@@ -148,12 +159,12 @@ export function generateProceduralAssets() {
 
     // Background rocks
     for (let i = 0; i < 12; i++) {
-        const z = -26 - Math.random() * 24,
-            x = (Math.random() < 0.5 ? -12 : 12) + (Math.random() * 4 - 2),
-            w = 4 + Math.random() * 6,
-            h = 1.5 + Math.random() * 2.5,
-            d = 5 + Math.random() * 8;
-        group.add(createVoxel(x, 1.2 - Math.random() * 1.5, z, w, h, d, rockMat));
+        const z = -26 - rng() * 24,
+            x = (rng() < 0.5 ? -12 : 12) + (rng() * 4 - 2),
+            w = 4 + rng() * 6,
+            h = 1.5 + rng() * 2.5,
+            d = 5 + rng() * 8;
+        group.add(createVoxel(x, 1.2 - rng() * 1.5, z, w, h, d, rockMat));
     }
 
     // Distant Terrain
@@ -165,66 +176,66 @@ export function generateProceduralAssets() {
         new THREE.MeshLambertMaterial({ color: 0x707070 })
     ];
     for (let i = 0; i < 250; i++) {
-        const z = -30 - (Math.random() * 180);
+        const z = -30 - (rng() * 180);
         const isFar = z < -120;
-        const side = Math.random() < 0.5 ? -1 : 1;
-        const x = side * (20 + Math.random() * 80);
+        const side = rng() < 0.5 ? -1 : 1;
+        const x = side * (20 + rng() * 80);
 
-        const w = 12 + Math.random() * (isFar ? 45 : 25);
-        const d = 12 + Math.random() * (isFar ? 45 : 25);
-        const h = 8 + Math.random() * (isFar ? 60 : 35);
+        const w = 12 + rng() * (isFar ? 45 : 25);
+        const d = 12 + rng() * (isFar ? 45 : 25);
+        const h = 8 + rng() * (isFar ? 60 : 35);
 
         const y = -15 + h / 2;
 
-        const mat = terrainColors[Math.floor(Math.random() * terrainColors.length)];
+        const mat = terrainColors[Math.floor(rng() * terrainColors.length)];
         distantTerrainGroup.add(createVoxel(x, y, z, w, h, d, mat));
 
-        if (Math.random() > 0.5) {
-            const w2 = w * (0.4 + Math.random() * 0.4);
-            const d2 = d * (0.4 + Math.random() * 0.4);
-            const h2 = h * (0.4 + Math.random() * 0.4);
+        if (rng() > 0.5) {
+            const w2 = w * (0.4 + rng() * 0.4);
+            const d2 = d * (0.4 + rng() * 0.4);
+            const h2 = h * (0.4 + rng() * 0.4);
 
-            const xOffset = (Math.random() - 0.5) * (w - w2);
+            const xOffset = (rng() - 0.5) * (w - w2);
             let x2 = x + xOffset;
             const minX = riverHalfWidth + w2 / 2 + 1.0;
             x2 = side * Math.max(minX, Math.abs(x2));
 
-            const z2 = z + (Math.random() - 0.5) * d;
-            const y2 = y + (Math.random() - 0.5) * h * 0.5;
+            const z2 = z + (rng() - 0.5) * d;
+            const y2 = y + (rng() - 0.5) * h * 0.5;
             distantTerrainGroup.add(createVoxel(x2, y2, z2, w2, h2, d2, mat));
         }
     }
     for (let i = 0; i < 80; i++) {
-        const z = -120 - (Math.random() * 100);
-        const side = Math.random() < 0.5 ? -1 : 1;
-        const x = side * (25 + Math.random() * 100);
+        const z = -120 - (rng() * 100);
+        const side = rng() < 0.5 ? -1 : 1;
+        const x = side * (25 + rng() * 100);
 
-        const w = 20 + Math.random() * 50;
-        const d = 20 + Math.random() * 50;
-        const h = 50 + Math.random() * 70;
+        const w = 20 + rng() * 50;
+        const d = 20 + rng() * 50;
+        const h = 50 + rng() * 70;
 
         const y = 10 + h / 2;
 
-        const mat = terrainColors[Math.floor(Math.random() * terrainColors.length)];
+        const mat = terrainColors[Math.floor(rng() * terrainColors.length)];
         distantTerrainGroup.add(createVoxel(x, y, z, w, h, d, mat));
     }
     for (let i = 0; i < 150; i++) {
-        const side = Math.random() < 0.5 ? -1 : 1;
-        const z = -40 - (Math.random() * 120);
-        const x = side * (12 + Math.random() * 60);
+        const side = rng() < 0.5 ? -1 : 1;
+        const z = -40 - (rng() * 120);
+        const x = side * (12 + rng() * 60);
 
-        const w = 8 + Math.random() * 20;
-        const d = 8 + Math.random() * 20;
-        const h = 0.5 + Math.random() * 4;
+        const w = 8 + rng() * 20;
+        const d = 8 + rng() * 20;
+        const h = 0.5 + rng() * 4;
 
-        const y = 15 + Math.random() * 30;
+        const y = 15 + rng() * 30;
 
-        const mat = terrainColors[Math.floor(Math.random() * 2)];
+        const mat = terrainColors[Math.floor(rng() * 2)];
         distantTerrainGroup.add(createVoxel(x, y, z, w, h, d, mat));
 
-        if (Math.random() > 0.6) {
-            let detailX = x + (Math.random() - 0.5) * w;
-            const detailZ = z + (Math.random() - 0.5) * d;
+        if (rng() > 0.6) {
+            let detailX = x + (rng() - 0.5) * w;
+            const detailZ = z + (rng() - 0.5) * d;
             const minDetailX = riverHalfWidth + 1.5;
             if (side > 0) {
                 detailX = Math.max(minDetailX, detailX);
@@ -232,10 +243,10 @@ export function generateProceduralAssets() {
                 detailX = Math.min(-minDetailX, detailX);
             }
             if (!isOccupied(detailX, detailZ, 1.5)) {
-                if (Math.random() > 0.4) {
-                    distantTerrainGroup.add(createTree(detailX, y + h / 2, detailZ));
+                if (rng() > 0.4) {
+                    distantTerrainGroup.add(createTree(detailX, y + h / 2, detailZ, rng));
                 } else {
-                    distantTerrainGroup.add(createBush(detailX, y + h / 2, detailZ));
+                    distantTerrainGroup.add(createBush(detailX, y + h / 2, detailZ, rng));
                 }
                 occupy(detailX, detailZ, 1.5);
             }

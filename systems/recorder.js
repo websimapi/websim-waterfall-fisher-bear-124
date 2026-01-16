@@ -6,13 +6,14 @@ let startTime = 0;
 const FRAME_RATE = 30;
 let lastFrameTime = 0;
 
-export function startRecording(waterSeed = 12345, startTick = 0) {
+export function startRecording(waterSeed = 12345, startTick = 0, scenerySeed = 12345) {
     isRecording = true;
     frames = [];
     startTime = Date.now();
     lastFrameTime = startTime;
     window.__recordingWaterSeed = waterSeed;
     window.__recordingStartTick = startTick;
+    window.__recordingScenerySeed = scenerySeed;
 }
 
 // Precision helper to save JSON space
@@ -68,6 +69,7 @@ export function stopRecording() {
         bearType: progress.selectedBear,
         cosmeticId: progress.selectedCosmetic,
         waterSeed: window.__recordingWaterSeed || 12345,
+        scenerySeed: window.__recordingScenerySeed || 12345,
         startTick: window.__recordingStartTick || 0,
         frames: frames,
         totalFrames: frames.length,

@@ -32,7 +32,7 @@ const ReplayComposition = ({ replayData }) => {
     const dirLight = new THREE.DirectionalLight(16777215, 0.8);
     dirLight.position.set(10, 20, 5);
     scene.add(dirLight);
-    const scenery = createScenery();
+    const scenery = createScenery(replayData.scenerySeed || 12345);
     const log = scenery.getObjectByName("log");
     if (log) logRef.current = log;
     scene.add(scenery);
