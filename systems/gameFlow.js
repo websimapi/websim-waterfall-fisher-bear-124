@@ -88,7 +88,12 @@ function startGame() {
     if (showcaseBear) showcaseBear.visible = false;
 
     createGameBear();
-    startRecording();
+    
+    // Pass waterfall seed and current global tick to the recorder
+    const wf = scene.getObjectByName('waterfall');
+    const seed = wf?.userData?.seed || 12345;
+    startRecording(seed, gameState.totalTicks);
+    
     // notify listeners that gameplay has begun (for quick-start drag carry-over)
     window.dispatchEvent(new CustomEvent('game:started'));
 

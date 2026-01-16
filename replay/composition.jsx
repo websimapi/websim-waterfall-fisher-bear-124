@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { createBear } from "../entities/bear.js";
 import { createFish } from "../entities/fish.js";
 import { createScenery } from "../entities/scenery.js";
-import { createWaterfall } from "../entities/waterfall.js";
+import { createWaterfall, updateWaterfall } from "../entities/waterfall.js";
 const ReplayComposition = ({ replayData }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -16,6 +16,7 @@ const ReplayComposition = ({ replayData }) => {
   const bearRef = useRef(null);
   const fishGroupRef = useRef(null);
   const logRef = useRef(null);
+  const waterfallRef = useRef(null);
   useEffect(() => {
     if (!canvasRef.current || !replayData) return;
     const scene = new THREE.Scene();
@@ -35,8 +36,9 @@ const ReplayComposition = ({ replayData }) => {
     const log = scenery.getObjectByName("log");
     if (log) logRef.current = log;
     scene.add(scenery);
-    const waterfall = createWaterfall();
+    const waterfall = createWaterfall(replayData.waterSeed || 12345);
     scene.add(waterfall);
+    waterfallRef.current = waterfall;
     const bear = createBear(replayData.bearType || "splashy", replayData.cosmeticId);
     scene.add(bear);
     bearRef.current = bear;
@@ -76,6 +78,11 @@ const ReplayComposition = ({ replayData }) => {
       if (logRef.current) {
         if (frameData.lp) logRef.current.position.set(...frameData.lp);
         if (frameData.lr) logRef.current.rotation.set(...frameData.lr);
+      }
+      if (waterfallRef.current) {
+        const frameToTickScale = 60 / (replayData.fps || 30);
+        const currentTick = (replayData.startTick || 0) + Math.floor(frame) * frameToTickScale;
+        updateWaterfall(waterfallRef.current, currentTick);
       }
       const CAM_OFFSET_Y = 12;
       const CAM_OFFSET_Z = 9;
@@ -117,7 +124,7 @@ const ReplayComposition = ({ replayData }) => {
   }, [frame, replayData]);
   return /* @__PURE__ */ jsxDEV("canvas", { ref: canvasRef, style: { width: "100%", height: "100%" } }, void 0, false, {
     fileName: "<stdin>",
-    lineNumber: 165,
+    lineNumber: 177,
     columnNumber: 10
   });
 };

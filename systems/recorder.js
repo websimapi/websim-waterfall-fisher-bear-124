@@ -6,11 +6,13 @@ let startTime = 0;
 const FRAME_RATE = 30;
 let lastFrameTime = 0;
 
-export function startRecording() {
+export function startRecording(waterSeed = 12345, startTick = 0) {
     isRecording = true;
     frames = [];
     startTime = Date.now();
     lastFrameTime = startTime;
+    window.__recordingWaterSeed = waterSeed;
+    window.__recordingStartTick = startTick;
 }
 
 // Precision helper to save JSON space
@@ -65,6 +67,8 @@ export function stopRecording() {
         fps: FRAME_RATE,
         bearType: progress.selectedBear,
         cosmeticId: progress.selectedCosmetic,
+        waterSeed: window.__recordingWaterSeed || 12345,
+        startTick: window.__recordingStartTick || 0,
         frames: frames,
         totalFrames: frames.length,
         durationInSeconds: frames.length / FRAME_RATE

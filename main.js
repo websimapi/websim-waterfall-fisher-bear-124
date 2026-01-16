@@ -13,7 +13,8 @@ import { gameState } from './systems/game.js';
 // --- SCENE SETUP ---
 const scenery = createScenery();
 scene.add(scenery);
-const waterfall = createWaterfall();
+const waterfallSeed = Math.floor(Math.random() * 1000000);
+const waterfall = createWaterfall(waterfallSeed);
 scene.add(waterfall);
 createLights(scene);
 
@@ -55,9 +56,10 @@ function animate(time) {
     
     // Update game logic at fixed intervals
     while (accumulator >= FIXED_TIMESTEP) {
+        gameState.totalTicks++;
         updateControls(); // Process inputs synced with physics
         updateGame(FIXED_TIMESTEP); // Physics, AI, collision
-        updateWaterfall(waterfall); // Consistent waterfall speed
+        updateWaterfall(waterfall, gameState.totalTicks); // Consistent waterfall speed
         accumulator -= FIXED_TIMESTEP;
     }
     

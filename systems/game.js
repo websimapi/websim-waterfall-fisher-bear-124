@@ -20,7 +20,7 @@ export let activeFishes = [];
 // --- UI & STATE ---
 const { startButton } = bindUI();
 let playerProgress = getPlayerProgress();
-export let gameState = { current: 'IDLE', score: 0, streak: 1, idleAnimTimer: 0 };
+export let gameState = { current: 'IDLE', score: 0, streak: 1, idleAnimTimer: 0, totalTicks: 0 };
 const gravity = new THREE.Vector3(0, -0.05, 0);
 let isFirstLoad = true;
 /* gentle forward drift strength */
