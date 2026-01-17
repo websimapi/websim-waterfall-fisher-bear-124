@@ -4,6 +4,7 @@ let currentUser = null;
 let myRecord = null;
 const pageState = { tab: 'local', local: 0, global: 0 };
 const PAGE_SIZE = 8;
+const COLL_NAME = 'player_v2'; // Bumped for new schema
 
 function getLocalScores() {
   try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { return []; }
@@ -54,9 +55,16 @@ function renderGlobalFromRecords(records) {
   const items = [];
   for (const r of records) {
     try {
-      const data = JSON.parse(r.data || '{}');
-      if (typeof data.highScore === 'number') {
-        items.push({ user: r.username, score: data.highScore, clip: data.lastReplayJson || null });
+      // Support new 'stats' column or legacy 'data' column
+      const raw = r.stats || r.data || '{}';
+      const stats = JSON.parse(raw);
+      if (typeof stats.highScore === 'number') {
+        items.push({ 
+          user: r.username, 
+          score: stats.highScore, 
+          // Check for URL first, then legacy embedded JSON
+          clip: stats.lastReplayUrl || stats.lastReplayJson || null 
+        });
       }
     } catch {}
   }
@@ -86,9 +94,8 @@ async function ensureRoom() {
 }
 async function ensureMyRecord() {
   await ensureRoom();
-  if (!room) return; // no global backend available
-  const coll = room.collection('player_v1');
-  // try a few times to avoid creating during initial empty getList
+  if (!room) return;
+  const coll = room.collection(COLL_NAME);
   for (let attempt = 0; attempt < 3 && !myRecord; attempt++) {
     const byId = coll.filter({ user_id: currentUser.id }).getList();
     if (byId.length) { myRecord = byId[0]; break; }
@@ -102,34 +109,54 @@ async function ensureMyRecord() {
     await new Promise(r=>setTimeout(r, 250));
   }
   if (!myRecord) {
-    myRecord = await coll.create({ user_id: currentUser.id, data: JSON.stringify({ highScore: 0, recent: [] }) });
+    // Each user gets 1 row. stats column for score/replay, purchases for virtual items.
+    myRecord = await coll.create({ 
+      user_id: currentUser.id, 
+      stats: JSON.stringify({ highScore: 0, recent: [] }),
+      purchases: JSON.stringify({})
+    });
   }
 }
 export async function submitScoreToDB(score) {
   try {
     await ensureMyRecord();
     if (!room || !myRecord) return;
-    const coll = room.collection('player_v1');
-    let data = {};
-    try { data = JSON.parse(myRecord.data || '{}'); } catch { data = {}; }
-    const recent = Array.isArray(data.recent) ? data.recent : [];
+    const coll = room.collection(COLL_NAME);
     
-    // Use the JSON data
+    // Normalize data from stats column or legacy data column
+    let stats = {};
+    const raw = myRecord.stats || myRecord.data || '{}';
+    try { stats = JSON.parse(raw); } catch { stats = {}; }
+    const recent = Array.isArray(stats.recent) ? stats.recent : [];
+    
     const replayData = window.__lastReplayData || null;
+    let replayUrl = stats.lastReplayUrl || null;
+
+    // Upload replay JSON to blob storage to keep database row size small
+    if (replayData && window.websim?.upload) {
+      try {
+        const blob = new Blob([JSON.stringify(replayData)], { type: 'application/json' });
+        const file = new File([blob], `replay_${currentUser.username}_${Date.now()}.json`);
+        replayUrl = await window.websim.upload(file);
+      } catch (err) {
+        console.error('Replay upload failed:', err);
+      }
+    }
     
-    // We only store the JSON for the *latest* high score submission to avoid DB bloat.
-    // We won't store it in the 'recent' array history, just the top-level 'lastReplayJson'.
+    recent.unshift({ score, at: Date.now() });
+    const highScore = Math.max(Number(stats.highScore||0), score);
     
-    recent.unshift({ score, at: Date.now() }); // No clipUrl in history for now
-    const highScore = Math.max(Number(data.highScore||0), score);
-    
-    const newData = { 
+    const newStats = { 
         highScore, 
         recent: recent.slice(0, 50), 
-        lastReplayJson: replayData // Store JSON here
+        lastReplayUrl: replayUrl // Store the file upload URL
     };
     
-    await coll.update(myRecord.id, { data: JSON.stringify(newData) });
+    await coll.update(myRecord.id, { 
+      stats: JSON.stringify(newStats),
+      purchases: myRecord.purchases || JSON.stringify({}) // Initialized/Maintained empty purchases json
+    });
+    
     const updated = coll.filter({ username: currentUser.username }).getList();
     myRecord = updated[0] || myRecord;
   } catch (e) {
@@ -144,7 +171,7 @@ async function subscribeGlobal() {
     return;
   }
   try {
-    const coll = room.collection('player_v1');
+    const coll = room.collection(COLL_NAME);
     coll.subscribe(renderGlobalFromRecords);
     renderGlobalFromRecords(coll.getList());
   } catch { 
@@ -231,17 +258,30 @@ function bindReplayModal() {
   closeBtn?.addEventListener('click', ()=> hideReplayModal());
   modal?.addEventListener('click', (e)=>{ if(e.target===modal) hideReplayModal(); });
 }
-function showReplayModal({ replayData, user, score }) {
+async function showReplayModal({ replayData, user, score }) {
   const modal = document.getElementById('replay-modal'); if (!modal) return;
   
   const container = document.getElementById('replay-container');
   // Clear previous player
-  container.innerHTML = '';
+  container.innerHTML = '<div style="color:white; display:flex; align-items:center; justify-content:center; height:100%;">Loading Replay...</div>';
 
   if (replayData) {
-      import('../replay/main.jsx').then(({ mountReplay }) => {
-          mountReplay(container, replayData);
-      });
+      let data = replayData;
+      // If the data is a string, it's a URL from the database
+      if (typeof replayData === 'string' && (replayData.startsWith('http') || replayData.includes('.json'))) {
+          try {
+              const resp = await fetch(replayData);
+              data = await resp.json();
+          } catch (e) {
+              console.error("Failed to fetch replay data", e);
+              container.innerHTML = '<p style="color:white;">Replay data could not be loaded</p>';
+              return;
+          }
+      }
+
+      container.innerHTML = '';
+      const { mountReplay } = await import('../replay/main.jsx');
+      mountReplay(container, data);
   } else {
       container.innerHTML = '<p style="color:white;">Replay unavailable</p>';
   }
